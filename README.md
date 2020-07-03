@@ -1,4 +1,4 @@
-# gRPC & gRPC-Web Services and Fly.io
+# gRPC & gRPC-Web Services on Fly.io
 
 > Run gRPC & gRPC-Web services close to users with [Fly](https://fly.io/).
 
@@ -8,114 +8,58 @@
 
 This application demonstrates how to use Fly and gRPC to run your services close to users all over the world. 
 
-Fly runs tiny virtual machines at edge datacenters close to your users, with each edge including a local Redis cache and the ability to run broadcast commands globally. The gRPC system is a way to define and run fast services with very low overhead and streaming abilities. gRPC offers client and server code genration for many languages and VMs, including JVM/Java/Kotlin/Android, .NET, C++, Dart, Go, Node, PHP, Python, Objective-C/Swift and Ruby; with proxies available to help access these services from browser based JavaScript. This application combines these technologies to create a gRPC server and gRPC-Web proxy on Fly. 
+Fly runs tiny virtual machines at edge datacenters close to your users, with each edge including a local Redis cache, and the ability to broadcast commands globally. The gRPC system is a way to define and run fast services with very low overhead and streaming abilities, while offering client and server code genration for many languages and VMs — including JVM/Java/Kotlin/Android, .NET, C++, Dart, Go, Node, PHP, Python, Objective-C/Swift, Ruby; and browser based JS via gRPC-Web adapters. This application combines these technologies to create a gRPC server and gRPC-Web proxy on Fly. 
 
-It uses the [gRPC](https://grpc.io) 
+It uses the [gRPC](https://grpc.io) libraries for the main gRPC service and  [grpcwebproxy](https://github.com/improbable-eng/grpc-web/tree/master/go/grpcwebproxy) for browser support. We'll also use [buildpacks](https://fly.io/blog/simpler-fly-deployments-nodejs-rails-golang-java/) for easy deployment. 
 
 ## Deploying to Fly
 
 - Install [flyctl](https://fly.io/docs/getting-started/installing-flyctl/)
 - Login to Fly: `flyctl auth login`
-- Create a new Fly app: `flyctl apps create`
-- Deploy the app to Fly: `flyctl deploy`
+- Create a new Fly app: `flyctl apps create` - don't overwrite the configuration at this point, the special configuration that gRPC requires has been set in `fly.toml`. 
 
-Once deployed, you can launch the GraphQL Playground by running `flyctl open`.
+- Deploy the app to Fly: `flyctl deploy -a my-grpc-app`
 
-## Running GraphQL queries
+## Using the gRPC service
 
-To search books, enter:
-
+With gRPC you'll usually use the generated client libraries in the language of your choice, but to make sure our service is working now we'll use the grpcurl tool:
 ```
-{
- search(search:"for whom the bell tolls") {
-   isbn
-   author_name
-   contributor
-   title
-   first_publish_year
- }
-}
+grpcurl -proto hello.proto my-grpc-app.fly.dev:443 MainService/Hello 
 ```
 
-To get a single book by ISBN, enter:
-
+You can also test that streaming is working as you'd expect by calling the `Clock` method, which streams out a timestamp every second:
 ```
-{
-  book(bib_key:"ISBN:0385472579") {
-    bib_key,
-    thumbnail_url,
-    preview_url,
-    info_url
-  }
-}
+grpcurl -proto hello.proto my-grpc-app.fly.dev:443 MainService/Clock 
+``` 
+
+## What's Happening Inside
+
+The gRPC servers that we're running have one special feature that makes them difficult to deploy on many systems – they use the relatively new HTTP/2 protocol with a special feature called HTTP Trailers. Most HTTP/2 load balancers will terminate the HTTP/2 connection at the load balancer, and then make a more compliant HTTP/1.1 connection on the backend to the application server. This won't work with gRPC, so we need to drop down to using lower-level TCP load balancing.
+
+Luckily, Fly supports TCP balancing just fine, with the following configuration in your `fly.toml`:
+```toml
+[[services]]
+  internal_port = 54321
+  protocol = "tcp"
+
+  [[services.ports]]
+    handlers = ["tls"]
+    port = "443"
 ```
 
-Learn more about GraphQL playground [in the documentation](https://www.apollographql.com/docs/apollo-server/testing/graphql-playground/).
-
-If you prefer to use to command line, there's two scripts, [`scripts/bookfind.sh`](https://github.com/fly-examples/edge-apollo-cache/blob/master/scripts/bookfind.sh) and [`scripts/booksearch.sh`](https://github.com/fly-examples/edge-apollo-cache/blob/master/scripts/booksearch.sh) you can use. Set the environment variable APPNAME to your applications name- you can find the application name with `flyctl info`. 
-
-## What Happens Inside The Application
-
-There are a number of parts of the server which are mostly defining the configuration of the packages used. `apollo-server` handles the web interactions, `apollo-server-cache-redis` is a component for that server which manages Redis as a general purpose cache and `apollo-server-plugin-response-cache` uses that cache for the particular job of caching responses from API requests.
-
-When a query arrives at the ApolloServer, it is filtered through the GraphQL types definition `typeDefs` and then matched with resolvers defined in `resolvers`. Both define the endpoints in terms of GraphQL types - for parsing the query - and in terms of datasources where the query can be resolved.
-
-In this case there are two queries, book and search. The resolvers definition maps each of these to the same RESTDataSource which is configured in books-api.js. It's there that the connection to the openlibrary.org REST API is defined. 
-
-Once the REST query has been fulfilled, the server will return the results as JSON to the client that made the query. And in the background if its been configured to cache that result, it'll cache that response. Needless to say, it will also check on incoming queries to see if it already has a cached result to return.
-
-In `index.js`, after the definition of the `typeDefs` and `resolvers`, the application has code to create the RedisCache, either locally or using Fly's global Redis service. Environment variables with a connection string to the server determine which.
-
-Finally an ApolloServer is created, is given all the configured items, the `typedefs`, `resolvers`, a list of datasources, a cache with parameters and the `responseCachePlugin` and the server is set off listening for incoming requests. 
-
-If you are wondering where the GraphQL Playground comes from in this, that's an integrated part of the Apollo Server. 
-
+We're also need to telling Fly to have only a TLS (no HTTP) listener on 443 – this takes care of encryption and allows fly to terminate TLS with the default, managed, or the configured certificates. We could also handle TLS entirely within the application itself, by removing all Fly listeners and activating the [TCP Passthrough](https://fly.io/docs/services/#tcp-pass-through). 
+ 
+ Once the TCP request reaches your gRPC application, the server will then take over and provide threading / event loop / goroutine management, depending on your chosen language, along with serialization and deserialization. 
+ 
 ## How Does Fly Fit Into This?
 
-Traditionally, an application like this would run somewhere in the cloud and usually distant from its users thanks to geography. The biggest problem then is the latency of the connection between the user and the application.
+While gRPC is often used to communicate between servers on the same rack or same datacenter, the principles it uses apply really well to clients on websites or mobile devices. The HTTP/2 communication channel is kept open as much as possible to provide a low-latency and low-energy way to speak to your server, and the protocol is very low-overhead so great for cellular or metered-bandwidth connections. It's also easy to re-connect on unreliable networks.
 
-As we previously mentioned, Fly runs tiny virtual machines close to users in datacenters around the world. Some of these machines handle connections, terminating TLS as close to the user as possible. As TLS needs a couple of connections to get going, thats a big boost, especially with an API. The connection handlers then pass the connection on to the application itself.
+Running your backend services on Fly lets you put these services really close to every customer or user in your global client base. If your data is in a central location, your services can use the local Redis cache that Fly provides at each edge location to cache data, and broadcast changes or invalidations via the [global Redis command broadcast](https://fly.io/docs/redis/#managing-redis-data-globally). There are also solutions like [DynamoDB Global Tables](https://aws.amazon.com/dynamodb/global-tables/) (NoSQL) or [Aurora Multi-Master](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html) (SQL) that can help move your data close to your application servers. 
 
-Applications are also run all over the world and Fly lets you put your applications in the most appropriate regions for your task. An edge cache like this could be located in the locations where you are finding the most traffic. When there is no immediatly local application, Fly automatically finds the closest place the application is running and directs connections to that place. 
-
-Edge hosting (and Fly specifically) offers significant performance benefits over traditional centralized hosting. Because requests can be served from the node closest to the user, responses will be much faster. This example uses Redis to cache responses so after the first request is made to a region, duplicate requests in the next hour will be significantly faster.
+The reduced latency from having your servers close to your clients is especially useful in gRPC where you want all your calls to finish as quickly as possible. If your clients are mobile applications, they'll benefit even more from the latency reduction when they're running on cellular networks, where re-connections are common. 
 
 
-## Testing latency with cURL
+## Testing gRPC performance with `ghz`
 
-If you're running on MacOS or Linux, you likely already have the cURL command line tool installed. cURL can print timing data for requests, here are examples that show total request time, TCP connect time, and TLS handshake time.
-
-#### GraphQL cURL request
-
-See [`scripts/timegraphqlapi.sh`](https://github.com/fly-examples/edge-apollo-cache/blob/master/scripts/timegraphqlapi.sh)
-
-```curl
-curl 'https://<appname>.fly.dev/' \
-  -o /dev/null -sS \
-  -X POST \
-  -H "Content-Type: application/json" \
-  -d '{"operationName":null,"variables":{},"query":"{ book(bib_key: \"ISBN:0385472579\") {\n    bib_key\n    thumbnail_url\n    preview_url\n    info_url\n  }\n}\n"}' \
-  -w "Timings\n------\ntotal:   %{time_total}\nconnect: %{time_connect}\ntls:     %{time_appconnect}\n"
-```
-
-#### Source API cURL request
-
-See [`scripts/timesourceapi.sh`](https://github.com/fly-examples/edge-apollo-cache/blob/master/scripts/timesourceapi.sh)
-
-```curl
-curl 'https://openlibrary.org/api/books?bibkeys=ISBN:0385472579' \
-    -o /dev/null -sS \
-    -w "Timings\n------\ntotal:   %{time_total}\nconnect: %{time_connect}\ntls:     %{time_appconnect}\n"
-```
-
-## Latency Results
-
-Here are some sample response times using this app hosted on Fly vs. making requests to the Open Library API directly:
-
-| Request Method    | Test 1 | Test 2 | Test 3 |
-|-------------------|--------|--------|--------|
-| [Open Library API](#source-api-curl-request)  | 2.06s  | 1.70s  | 1.24s  |
-| [Fly.io (uncached)](#graphql-curl-request) | 1.01s  | 1.03s  | 2.27s  |
-| [Fly.io (cached)](#graphql-curl-request)   | 0.13s  | 0.11s  | 0.09s  |
-
-On uncached requests, Fly.io must connect to the Open Library API, but subsequent requests will load data from the regional Fly cache. You can try these tests locally using [cURL](#testing-latency-with-curl)
+Because gRPC applications use a special wire protocol, we can't use `cURL` or `wget` like we normally would to test them. There are special gRPC-aware tools like [ghz](https://ghz.sh) that work great. After you enable the Fly regions you'd like to run your service in and set the container CPU & memory configuration to the size you need, `ghz` is great way to test your service's performance. 

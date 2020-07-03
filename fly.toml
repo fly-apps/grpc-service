@@ -1,7 +1,5 @@
 # fly.toml file generated for  on 2020-07-01T21:55:26+05:30
 
-app = "grpc-test"
-
 [build]
   builder = "cloudfoundry/cnb:tiny"
 
@@ -10,8 +8,8 @@ app = "grpc-test"
   protocol = "tcp"
 
   [services.concurrency]
-    hard_limit = 25
-    soft_limit = 20
+    hard_limit = 2500
+    soft_limit = 2000
 
   [[services.ports]]
     handlers = ["tls"]
