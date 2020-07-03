@@ -62,4 +62,9 @@ The reduced latency from having your servers close to your clients is especially
 
 ## Testing gRPC performance with `ghz`
 
-Because gRPC applications use a special wire protocol, we can't use `cURL` or `wget` like we normally would to test them. There are special gRPC-aware tools like [ghz](https://ghz.sh) that work great. After you enable the Fly regions you'd like to run your service in and set the container CPU & memory configuration to the size you need, `ghz` is great way to test your service's performance. 
+Because gRPC applications use a special wire protocol, we can't use `cURL` or `wget` like we normally would to test them. There are special gRPC-aware tools like [ghz](https://ghz.sh) that work great. After you enable the Fly regions you'd like to run your service in and set the container CPU & memory configuration to the size you need, you can use `ghz` to test your service:
+
+```
+ghz my-grpc-app.fly.dev:443 --call=MainService/Hello --proto=hello.proto
+```
+Keep in mind that this test will run against the Fly region closest to your computer, which may or may not be the region that your users will use. gRPC testing also works a little different, in that because the HTTP/2 connection is re-used a lot across many different requests, testing against dummy methods that don't do much is really just a test of single connection bandwidth. The best way to make sure your service is running great would be to enable the instrumentation provided in your client and service libraries and exercise your service in a real-world secenario.
