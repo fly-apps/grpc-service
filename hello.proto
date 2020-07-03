@@ -1,0 +1,17 @@
+syntax = "proto2";
+option go_package = "main";
+
+message Empty{}
+
+message Greeting{
+  required string message = 1;
+}
+
+message Time {
+  required string timestamp = 1;
+}
+
+service MainService {
+  rpc Hello(Empty) returns (Greeting);
+  rpc Clock(Empty) returns (stream Time);
+}
