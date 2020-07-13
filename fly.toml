@@ -1,7 +1,7 @@
 # fly.toml file generated for  on 2020-07-01T21:55:26+05:30
 
 [build]
-  builder = "cloudfoundry/cnb:tiny"
+  builder = "gcr.io/paketo-buildpacks/builder:tiny"
 
 [[services]]
   internal_port = 54321
