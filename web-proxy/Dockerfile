@@ -36,6 +36,8 @@ RUN dep ensure && \
 
 EXPOSE 8080
 ENTRYPOINT [ "/bin/sh", "-c", "exec /go/bin/grpcwebproxy \
-  --backend_addr=host.docker.internal:50051 \
-  --run_tls_server=false \
-  --allow_all_origins " ]
+  --backend_addr=grpc-example-app.fly.dev:443 \
+    --run_tls_server=false \
+    --allow_all_origins \
+    --use_websockets \
+    --backend_tls=true" ]
