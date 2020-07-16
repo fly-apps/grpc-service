@@ -1,4 +1,3 @@
-# fly.toml file generated for  on 2020-07-01T21:55:26+05:30
 
 [build]
   builder = "gcr.io/paketo-buildpacks/builder:tiny"

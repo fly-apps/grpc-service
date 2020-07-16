@@ -24,24 +24,25 @@ service MainService {
 }
 ```
 
-We'll deploy this gRPC service to an app called `grpc-example-app`, and a web proxy to `web-proxy-grpc-example-app`.  
-
 ## Deploying the gRPC service to Fly
 
 - Install [flyctl](https://fly.io/docs/getting-started/installing-flyctl/)
 - Login to Fly: `flyctl auth login`
-- Create a new Fly app using `flyctl apps create` - don't overwrite the configuration at this point, the special configuration that gRPC requires has been set in `fly.toml` and explained below. 
-- Deploy the app to Fly: `flyctl deploy -a grpc-example-app`. You'll use the app name you created instead of `grpc-example-app`.
+- Create a new Fly app using `flyctl init`
+- The gRPC app needs a bit of special configuration, as described in `fly.template.toml` – you can either copy it over or just use the provided script with `sh import_fly_template.sh`. 
+- Deploy the app to Fly: `flyctl deploy`
 
 ### Deploying the gRPC-Web Proxy
 
-- `cd` in the `web-proxy` directory. There's a Dockerfile there that installs the gRPC-Web proxy and points it at our `grpc-example-app.fly.dev` service. You'll want to change the URL to the application application you created in the step above. 
-- Create the web proxy app on Fly with `flyctl app create`. Again, don't override the `fly.toml` – it has special configurations for the proxy.
-- Deploy the app to Fly: `flyctl deploy -a web-proxy-grpc-example-app`. You'll use the app name you created instead of `web-proxy-grpc-example-app`.   
+- `cd` into the `web-proxy` directory. 
+- Update the `Dockerfile` to point to your deployed gRPC service. The `--backend_addr=grpc-example-app.fly.dev:443` property needs to be updated to your app's hostname.
+- Create the web proxy app on Fly with `flyctl init` and opt to use the existing Dockerfile.
+- The configuration for this app is in `fly.temlplate.toml` – you can either copy it over or use the `sh import_fly_template.sh` script again.
+- Deploy the app to Fly: `flyctl deploy`.
 
 ## Using the gRPC service
 
-With gRPC you'll usually use the generated client libraries in the language of your choice, but to make sure our service is working now we'll use the [`grpcurl`](https://github.com/fullstorydev/grpcurl) tool:
+With gRPC, you'll usually use the generated client libraries in the language of your choice, but to make sure our service is working now we'll use the [`grpcurl`](https://github.com/fullstorydev/grpcurl) tool:
 ```
 grpcurl -proto hello.proto grpc-example-app.fly.dev:443 MainService/Hello 
 ```
@@ -70,9 +71,9 @@ We're also need to telling Fly to have only a TLS (no HTTP) listener on 443 – 
  
  Once the TCP request reaches your gRPC application, the server will then take over and provide threading / event loop / goroutine management, depending on your chosen language, along with serialization and deserialization. 
  
- ### What does the proxy do?
+ ### What does the web proxy do?
  
- Becuase the gRPC services uses HTTP/2 as a base, you can't make requests to it from inside a browser — there are currently no browser APIs that allow directly reading of a HTTP/2 connection. To enable use inside a browser, we'll deploy a proxy that converts a normal HTTP request to and from the gRPC HTTP/2 format. This allows you to generate a client stub and use it inside the browser as you would from any other server side programming language. See [gRPC-Web](https://grpc.io/docs/languages/web/) for the special client code and limitations. 
+ Because the gRPC services uses HTTP/2 as a base, you can't make requests to it from inside a browser — there are currently no browser APIs that allow directly reading of a HTTP/2 connection. To enable use inside a browser, we'll deploy a proxy that converts a normal HTTP request to and from the gRPC HTTP/2 format. This allows you to generate a client stub and use it inside the browser as you would from any other server side programming language. See [gRPC-Web](https://grpc.io/docs/languages/web/) for the special client code and limitations. 
  
 ## How Does Fly Fit Into This?
 
