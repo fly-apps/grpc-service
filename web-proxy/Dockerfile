@@ -36,7 +36,7 @@ RUN dep ensure && \
 
 EXPOSE 8080
 ENTRYPOINT [ "/bin/sh", "-c", "exec /go/bin/grpcwebproxy \
-  --backend_addr=grpc-example-app.fly.dev:443 \
+  --backend_addr=grpc-test.fly.dev:443 \
     --run_tls_server=false \
     --allow_all_origins \
     --use_websockets \
