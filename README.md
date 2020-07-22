@@ -4,6 +4,8 @@
 
 ## Overview
 
+<!---- cut here --->
+
 This application demonstrates how to use Fly and gRPC to run your services close to users all over the world. 
 
 Fly runs tiny virtual machines at edge datacenters close to your users, with each edge including a local Redis cache, and the ability to broadcast commands globally. 
