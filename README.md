@@ -46,12 +46,14 @@ service MainService {
 ## Using the gRPC service
 
 With gRPC, you'll usually use the generated client libraries in the language of your choice, but to make sure our service is working now we'll use the [`grpcurl`](https://github.com/fullstorydev/grpcurl) tool:
-```shell script
+
+```shell
 grpcurl -proto hello.proto grpc-test.fly.dev:443 MainService/Hello 
 ```
 
 You can also test that streaming is working as you'd expect by calling the `Clock` method, which streams out a timestamp every second:
-```shell script
+
+```shell
 grpcurl -proto hello.proto grpc-test.fly.dev:443 MainService/Clock 
 ``` 
 
@@ -71,13 +73,13 @@ Luckily, Fly supports TCP balancing just fine, with the following configuration 
     port = "443"
 ```
 
-We're also need to telling Fly to have only a TLS (no HTTP) listener on 443 – this takes care of encryption and allows fly to terminate TLS with the default, managed, or the configured certificates. If we wanted to, we could also handle TLS entirely within the application itself, by removing all Fly listeners and activating the [TCP Passthrough](https://fly.io/docs/services/#tcp-pass-through). 
+We also need to tell Fly to have only a TLS (no HTTP) listener on 443 – this takes care of encryption and allows Fly to terminate TLS with the default, managed, or the configured certificates. If we wanted to, we could also handle TLS entirely within the application itself, by removing all Fly listeners and activating the [TCP Passthrough](https://fly.io/docs/services/#tcp-pass-through). 
  
- Once the TCP request reaches your gRPC application, the server will then take over and provide threading / event loop / goroutine management, depending on your chosen language, along with serialization and deserialization. 
+Once the TCP request reaches your gRPC application, the server will then take over and provide threading / event loop / goroutine management, depending on your chosen language, along with serialization and deserialization. 
  
- ## Using the Web Proxy
+## Using the Web Proxy
  
- Because the gRPC services uses HTTP/2, you can't make requests to it from inside a browser — there are currently no browser APIs that allow direct and full control of a HTTP/2 connection. To enable use inside a browser, there's a [gRPC-Web](https://grpc.io/docs/languages/web/) specification that converts a normal HTTP/1.1 request to and from the gRPC HTTP/2 format. Multiple proxy servers that implement the spec are available, like [Envoy](https://grpc.io/docs/languages/web/basics/#configure-the-envoy-proxy) and [grpcwebproxy](https://github.com/improbable-eng/grpc-web/tree/master/go/grpcwebproxy) (which we've deployed here). We've generated JS code for our gRPC definition using the instructions [on the official gRPC-Web example page](https://github.com/grpc/grpc-web/tree/master/net/grpc/gateway/examples/helloworld#generate-protobuf-messages-and-client-service-stub), so let's see how to use it.
+Because the gRPC services uses HTTP/2, you can't make requests to it from inside a browser — there are currently no browser APIs that allow direct and full control of a HTTP/2 connection. To enable use inside a browser, there's a [gRPC-Web](https://grpc.io/docs/languages/web/) specification that converts a normal HTTP/1.1 request to and from the gRPC HTTP/2 format. Multiple proxy servers that implement the spec are available, like [Envoy](https://grpc.io/docs/languages/web/basics/#configure-the-envoy-proxy) and [grpcwebproxy](https://github.com/improbable-eng/grpc-web/tree/master/go/grpcwebproxy) (which we've deployed here). We've generated JS code for our gRPC definition using the instructions [on the official gRPC-Web example page](https://github.com/grpc/grpc-web/tree/master/net/grpc/gateway/examples/helloworld#generate-protobuf-messages-and-client-service-stub), so let's see how to use it.
  
  In the `web-proxy` folder, the `client.js` file calls the two methods of our servcie and writes the output into `console.log`. You can change the following line:
  
