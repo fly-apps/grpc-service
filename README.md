@@ -18,7 +18,8 @@ This example uses the [gRPC](https://grpc.io) libraries for the main gRPC servic
 
 ## What we'll deploy
 
-Since this is an example, we'll write a quick gRPC service definition in `hello.proto` that has the following methods: 
+Since this is an example, we'll write a quick gRPC service definition in `hello.proto` that has the following methods:
+
 ```protobuf
 service MainService {
   rpc Hello(Empty) returns (Greeting);
@@ -59,6 +60,7 @@ grpcurl -proto hello.proto grpc-test.fly.dev:443 MainService/Clock
 The gRPC servers that we're running have one special feature that makes them difficult to deploy on many systems – they use the relatively new HTTP/2 protocol with a special feature called HTTP Trailers. Most HTTP/2 load balancers will terminate the HTTP/2 connection at the load balancer, and then make a more compliant HTTP/1.1 connection on the backend to the application server. This won't work with gRPC, so we need to drop down to using lower-level TCP load balancing.
 
 Luckily, Fly supports TCP balancing just fine, with the following configuration in your `fly.toml`:
+
 ```toml
 [[services]]
   internal_port = 54321
@@ -78,15 +80,19 @@ We're also need to telling Fly to have only a TLS (no HTTP) listener on 443 – 
  Because the gRPC services uses HTTP/2, you can't make requests to it from inside a browser — there are currently no browser APIs that allow direct and full control of a HTTP/2 connection. To enable use inside a browser, there's a [gRPC-Web](https://grpc.io/docs/languages/web/) specification that converts a normal HTTP/1.1 request to and from the gRPC HTTP/2 format. Multiple proxy servers that implement the spec are available, like [Envoy](https://grpc.io/docs/languages/web/basics/#configure-the-envoy-proxy) and [grpcwebproxy](https://github.com/improbable-eng/grpc-web/tree/master/go/grpcwebproxy) (which we've deployed here). We've generated JS code for our gRPC definition using the instructions [on the official gRPC-Web example page](https://github.com/grpc/grpc-web/tree/master/net/grpc/gateway/examples/helloworld#generate-protobuf-messages-and-client-service-stub), so let's see how to use it.
  
  In the `web-proxy` folder, the `client.js` file calls the two methods of our servcie and writes the output into `console.log`. You can change the following line:
+ 
 ```js
  var client = new MainServiceClient('https://grpc-web-proxy-test.fly.dev:443');
 ```
-to update it with your web proxy app's hostname; and then run 
-```shell script
+
+to update it with your web proxy app's hostname and then run:
+
+```shell
 npm install
 npx webpack client.js
 open index.html
-``` 
+```
+
 This will re-compile the client and open up your browser, where the method repsonses are being printed into the console.
 
 You'll notice that the clock stops streaming after exactly 10 seconds – this is based on a [flag](https://github.com/improbable-eng/grpc-web/blob/b16a11b6e855a48b6bc6e369a85f3d46fcfe1a77/go/grpcwebproxy/main.go#L45) in the proxy configuration that you'll want to set if your services have longer-running methods. For example, you can set them to 1 hour by adding `--server_http_max_write_timeout=3600` and `--server_http_max_read_timeout=3600` to the `ENTRYPOINT` command in `web-proxy/Dockerfile`.
@@ -106,4 +112,5 @@ Because gRPC applications use a special wire protocol, we can't use `cURL`, `wge
 ```
 ghz grpc-test.fly.dev:443 --call=MainService/Hello --proto=hello.proto
 ```
+
 Keep in mind that this test will run against your closest enabled Fly region, which may or may not be the region that your users will use. gRPC testing also works a little different, because a single HTTP/2 connection is re-used across many requests. Testing against dummy methods that don't do much is really just a test of single connection bandwidth. The best way to make sure your service is running great would be to enable the instrumentation provided in your client and service libraries and exercise your service in a real-world scenario.
