@@ -6,7 +6,7 @@
 
 <!---- cut here --->
 
-This application demonstrates how to use Fly and gRPC to run your services close to users all over the world. 
+[This application](https://github.com/fly-examples/grpc-service) demonstrates how to use Fly and gRPC to run your services close to users all over the world. 
 
 Fly runs tiny virtual machines at edge datacenters close to your users, with each edge including a local Redis cache, and the ability to broadcast commands globally. 
 
@@ -18,7 +18,7 @@ This example uses the [gRPC](https://grpc.io) libraries for the main gRPC servic
 
 ## What we'll deploy
 
-Since this is an example, we'll write a quick gRPC service definition in `hello.proto` that has the following methods:
+Since this is an example, we'll write a quick gRPC service definition in [`hello.proto`](https://github.com/fly-examples/grpc-service/blob/master/hello.proto) that has the following methods:
 
 ```protobuf
 service MainService {
@@ -38,7 +38,7 @@ service MainService {
 ### Deploying the gRPC-Web Proxy
 
 - `cd` into the `web-proxy` directory. 
-- Update the `Dockerfile` to point to your deployed gRPC service. The `--backend_addr=grpc-test.fly.dev:443` property needs to be updated to your app's hostname.
+- Update the [`Dockerfile`](https://github.com/fly-examples/grpc-service/blob/master/web-proxy/Dockerfile#L39) to point to your deployed gRPC service. The `--backend_addr=grpc-test.fly.dev:443` property needs to be updated to your app's hostname.
 - Create the web proxy app on Fly with `flyctl init`.
 - The configuration for this app is in `fly.temlplate.toml` – you can either copy it over or use the `sh import_fly_template.sh` script to import it from the template.
 - Deploy the app to Fly with `flyctl deploy`.
@@ -81,7 +81,7 @@ Once the TCP request reaches your gRPC application, the server will then take ov
  
 Because the gRPC services uses HTTP/2, you can't make requests to it from inside a browser — there are currently no browser APIs that allow direct and full control of a HTTP/2 connection. To enable use inside a browser, there's a [gRPC-Web](https://grpc.io/docs/languages/web/) specification that converts a normal HTTP/1.1 request to and from the gRPC HTTP/2 format. Multiple proxy servers that implement the spec are available, like [Envoy](https://grpc.io/docs/languages/web/basics/#configure-the-envoy-proxy) and [grpcwebproxy](https://github.com/improbable-eng/grpc-web/tree/master/go/grpcwebproxy) (which we've deployed here). We've generated JS code for our gRPC definition using the instructions [on the official gRPC-Web example page](https://github.com/grpc/grpc-web/tree/master/net/grpc/gateway/examples/helloworld#generate-protobuf-messages-and-client-service-stub), so let's see how to use it.
  
- In the `web-proxy` folder, the `client.js` file calls the two methods of our servcie and writes the output into `console.log`. You can change the following line:
+ In the `web-proxy` folder, the [`client.js`](https://github.com/fly-examples/grpc-service/blob/master/web-proxy/client.js) file calls the two methods of our service and writes the output into `console.log`. You can change the following [line](https://github.com/fly-examples/grpc-service/blob/master/web-proxy/client.js#L4):
  
 ```js
  var client = new MainServiceClient('https://grpc-web-proxy-test.fly.dev:443');
@@ -97,7 +97,7 @@ open index.html
 
 This will re-compile the client and open up your browser, where the method repsonses are being printed into the console.
 
-You'll notice that the clock stops streaming after exactly 10 seconds – this is based on a [flag](https://github.com/improbable-eng/grpc-web/blob/b16a11b6e855a48b6bc6e369a85f3d46fcfe1a77/go/grpcwebproxy/main.go#L45) in the proxy configuration that you'll want to set if your services have longer-running methods. For example, you can set them to 1 hour by adding `--server_http_max_write_timeout=3600` and `--server_http_max_read_timeout=3600` to the `ENTRYPOINT` command in `web-proxy/Dockerfile`.
+You'll notice that the clock stops streaming after exactly 10 seconds – this is based on a [flag](https://github.com/improbable-eng/grpc-web/blob/b16a11b6e855a48b6bc6e369a85f3d46fcfe1a77/go/grpcwebproxy/main.go#L45) in the proxy configuration that you'll want to set if your services have longer-running methods. For example, you can set them to 1 hour by adding `--server_http_max_write_timeout=3600` and `--server_http_max_read_timeout=3600` to the `ENTRYPOINT` command in [`web-proxy/Dockerfile`](https://github.com/fly-examples/grpc-service/blob/master/web-proxy/Dockerfile#L40).
  
 ## How Does Fly Fit Into This?
 
