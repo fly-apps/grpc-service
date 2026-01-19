@@ -46,25 +46,25 @@ grpcurl -proto hello.proto grpc-test.fly.dev:443 MainService/Clock
 ```
 ## What's Happening Inside
 
-The gRPC servers that we're running have one special feature that makes them difficult to deploy on many systems – they use the relatively new HTTP/2 protocol with a special feature called HTTP Trailers. Most HTTP/2 load balancers will terminate the HTTP/2 connection at the load balancer, and then make a more compliant HTTP/1.1 connection on the backend to the application server. This won't work with gRPC, so we need to drop down to using lower-level TCP load balancing.
+The gRPC servers that we're running have one special feature that makes them difficult to deploy on many systems – they use the relatively new HTTP/2 protocol with a special feature called HTTP Trailers. Most HTTP/2 load balancers will terminate the HTTP/2 connection at the load balancer, and then make a more compliant HTTP/1.1 connection on the backend to the application server. This won't work with gRPC.
 
-Luckily, Fly supports TCP balancing just fine, with the following configuration in your `fly.toml`:
+Luckily, Fly supports connecting to your service using HTTP/2, with the following configuration in your `fly.toml`:
 
 ```toml
-[[services]]
+[http_service]
   internal_port = 54321
-  protocol = "tcp"
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
 
-  [[services.ports]]
-    handlers = ["tls"]
-    port = "443"
+ [http_service.http_options]
+  h2_backend = true
 
-  [services.ports.tls_options]
-    alpn = ["h2"]
-
+[http_service.tls_options]
+  alpn = ["h2"]
 ```
-
-We also need to tell Fly to have only a TLS (no HTTP) listener on 443 – this takes care of encryption and allows Fly to terminate TLS with the default, managed, or the configured certificates. If we wanted to, we could also handle TLS entirely within the application itself, by removing all Fly listeners and activating the [TCP Passthrough](https://fly.io/docs/services/#tcp-pass-through).
 
 Once the TCP request reaches your gRPC application, the server will then take over and provide threading / event loop / goroutine management, depending on your chosen language, along with serialization and deserialization.
 
